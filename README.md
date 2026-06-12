@@ -1,19 +1,32 @@
-# Lead Quality Audit Agent
+# Lead & Product Quality Audit Agent
 
-An AI-powered auditor for **Buy Leads (BL)** that runs five quality checks on a single
-lead and returns a structured report.
+A single-file, browser-only AI auditor for **Buy Leads** and **Product listings**.
+No build step, no server, no Node.js — just open `index.html` and go.
 
-This project is a TypeScript re-implementation of the "Bl Quality Agents" n8n workflow,
-following the same architecture as [HTML_Auditor_Agent](https://github.com/sayanrup/HTML_Auditor_Agent):
-React + tRPC + Node, with an OpenRouter-compatible LLM client.
+Follows the same single-page conventions as
+[HTML_Auditor_Agent](https://github.com/sayanrup/HTML_Auditor_Agent), but talks
+directly to [OpenRouter](https://openrouter.ai) from the browser using your own
+API key (stored only in `localStorage`).
 
 ---
 
-## Quality Checks
+## Input modes
+
+Pick one of three tabs:
+
+| Tab | Input | Audits |
+|---|---|---|
+| **Lead JSON** | Paste a Buy Lead JSON object (or click "Load sample") | 5 lead-quality checks |
+| **Screenshot** | Upload a screenshot of a product/lead page | Product checks (vision) |
+| **Product URL** | Paste a product page URL | Product checks (page is fetched and parsed client-side) |
+
+---
+
+## Lead Quality Checks (5)
 
 | # | Check | What it does |
 |---|---|---|
-| 1 | **Spec / Title Mismatch** | Detects contradictions between the requirement title, description, category and the buyer's answers to item-specific questions (ISQ), and proposes an enriched title when a core spec (size, material, capacity, etc.) conflicts with the title. |
+| 1 | **Spec / Title Mismatch** | Detects contradictions between the requirement title, description, category and the buyer's ISQ answers, and proposes an enriched title when a core spec (size, material, capacity, etc.) conflicts with the title. |
 | 2 | **One-Word Title Enrichment** | If the title is a single word (or empty), enriches it into a 6-word-max descriptive title using the buyer's ISQ answers. |
 | 3 | **PII Detection** | Scans title, description and ISQ answers for phone numbers, emails, GSTIN-like patterns, credit-card-like numbers and social links; returns a cleaned title/description/ISQ with PII removed. |
 | 4 | **Selling Intent** | Flags leads that are actually a *seller* offering a product rather than a genuine buy requirement. |
@@ -21,8 +34,7 @@ React + tRPC + Node, with an OpenRouter-compatible LLM client.
 
 ### Rule-based gating
 
-To save LLM calls, each check is only invoked when a deterministic pre-check from the
-original workflow passes:
+To save LLM calls, each check only runs when a deterministic pre-check passes:
 
 - Checks **1** and **2** are mutually exclusive: a one-word (or empty) title runs check 2;
   a multi-word title runs check 1 unless the title is `<3` words and equals the category
@@ -32,75 +44,54 @@ original workflow passes:
 - Check **5** only runs when `quantity * mcat_median` (the probable order value) exceeds
   a configured threshold.
 
-Any check that's skipped is reported in the `skipped` array of the response, along with
-the reason.
+Any check that's skipped is reported with its reason.
 
 ---
 
-## Tech Stack
+## Product Quality Checks (3)
 
-| Layer | Technology |
-|---|---|
-| Frontend | React 19, TypeScript, Vite, Tailwind CSS v4 |
-| Backend | Node.js, Express, tRPC, Zod |
-| LLM integration | OpenAI-compatible REST (OpenRouter, or any compatible endpoint) |
-| Testing | Vitest |
+Run as a single combined vision-capable LLM call against the product image
+(uploaded screenshot or image scraped from the URL), name, price and
+description/specs:
+
+1. **Image ↔ Name Relevance** — does the product image actually match the stated product name?
+2. **Price Plausibility** — is the price absurd for this kind of product (too high or too low)?
+3. **Spec / Description Relevance** — do the listed specs/description match the product shown?
+
+For **Product URL** mode, the page is fetched client-side (via a CORS proxy
+fallback chain), and the product name, image, price and description are
+extracted from Open Graph / Twitter Card meta tags and JSON-LD `Product`
+schema where available.
 
 ---
 
 ## Getting Started
 
-### Prerequisites
+No install needed — `index.html` is fully self-contained.
 
-- Node.js 18+
-- npm
+1. Download or clone this repo.
+2. Open `index.html` directly in a browser, **or** serve it with any static
+   file server (recommended, so URL-mode CORS proxies work reliably):
 
-### Install
+   ```powershell
+   # Windows / PowerShell, no Node or Python required
+   ./serve.ps1
+   # then open http://localhost:8765
+   ```
 
-```bash
-git clone https://github.com/sayanrup/Lead-Quality-Audit-Agent.git
-cd Lead-Quality-Audit-Agent
-npm install
-```
+   ```bash
+   # or, if you have Python
+   python3 -m http.server 8765
+   ```
 
-### Environment variables
-
-Copy `.env.example` to `.env` and fill in the values you need:
-
-```bash
-cp .env.example .env
-```
-
-| Variable | Required | Description |
-|---|---|---|
-| `PORT` | No | Server port (default `3000`, auto-picks next free port) |
-| `LLM_API_KEY` | For server-side AI | Server-side API key used when the UI doesn't supply one |
-| `LLM_MODEL` | Optional | Default model (e.g. `google/gemini-2.5-flash-lite`) |
-| `LLM_BASE_URL` | Optional | Override endpoint (default: OpenRouter) |
-
-> You can skip all of the above and instead enter your **OpenRouter API key**
-> (`sk-or-v1-…`) directly in the app UI — it's stored in your browser's `localStorage`
-> and never sent anywhere other than OpenRouter.
-
-### Run
-
-```bash
-npm run dev
-```
-
-The app starts at `http://localhost:3000`.
+3. Enter your **OpenRouter API key** (`sk-or-v1-…`) — it's stored only in
+   your browser's `localStorage` and sent only to OpenRouter.
+4. Pick a vision-capable model (default: `google/gemini-2.5-flash-lite`).
+5. Choose a tab, provide input, and click **Run Audit**.
 
 ---
 
-## Usage
-
-1. Open the app.
-2. Enter your OpenRouter API key (`sk-or-v1-…`) and a model (default:
-   `google/gemini-2.5-flash-lite`).
-3. Paste a Buy Lead as JSON (or click **Load sample**) — see the shape below.
-4. Click **Run Audit** to see the results for all five checks.
-
-### Buy Lead input shape
+## Buy Lead input shape
 
 ```jsonc
 {
@@ -125,7 +116,7 @@ The app starts at `http://localhost:3000`.
 }
 ```
 
-### Response shape
+### Lead audit response shape
 
 ```ts
 {
@@ -149,40 +140,21 @@ The app starts at `http://localhost:3000`.
 
 ---
 
-## Project Structure
-
-```
-├── client/                       # React frontend (Vite)
-│   └── src/
-│       ├── pages/Home.tsx        # Lead input + results UI
-│       ├── components/ResultPanel.tsx
-│       └── lib/sampleLead.ts
-│
-├── server/                        # Node.js backend (tRPC)
-│   ├── routers.ts                 # API routes (leadAudit.run)
-│   └── services/
-│       ├── llmClient.ts           # OpenRouter / LLM HTTP client
-│       ├── ruleBasedChecks.ts      # Gating rules (word count, PII/selling regex, thresholds)
-│       ├── leadAuditOrchestrator.ts # Runs gating + the 5 agents, merges results
-│       └── agents/
-│           ├── specTitleMismatch.ts
-│           ├── oneWordIssue.ts
-│           ├── piiIssue.ts
-│           ├── sellingIntent.ts
-│           └── absurdQuantity.ts
-│
-└── shared/types.ts                # BuyLeadInput / LeadAuditResult types
-```
-
----
-
 ## OpenRouter Setup
 
 1. Sign up at [openrouter.ai](https://openrouter.ai) and create an API key.
 2. Paste your `sk-or-v1-…` key into the **OpenRouter API Key** field in the app.
-3. Pick a model (default: `google/gemini-2.5-flash-lite`).
+3. Pick a vision-capable model (default: `google/gemini-2.5-flash-lite`).
 
-Keys starting with `sk-or-` are automatically routed to `https://openrouter.ai/api/v1`.
+---
+
+## Project Structure
+
+```
+├── index.html    # Entire app — UI, styling, audit logic, OpenRouter client
+├── serve.ps1     # Optional local static file server (PowerShell, no deps)
+└── .claude/launch.json  # Preview launch config for serve.ps1
+```
 
 ---
 
