@@ -1,4 +1,4 @@
-# Lead & Product Quality Audit Agent
+# Quality Audit Agent
 
 A single-file, browser-only AI auditor for **Buy Leads** and **Product listings**.
 No build step, no server, no Node.js — just open `index.html` and go.
